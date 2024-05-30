@@ -1,5 +1,3 @@
-package pwn.noobs.trouserstreak.modules;
-
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.gui.utils.StarscriptTextBoxRenderer;
 import meteordevelopment.meteorclient.settings.Setting;
@@ -57,6 +55,9 @@ public class AutoScoreboard extends Module {
             .build()
     );
 
+    private long lastCommandTime = 0;
+    private static final long COOLDOWN = 2000; // 2 seconds in milliseconds
+
     public AutoScoreboard() {
         super(Trouser.Main, "auto-scoreboard", "Automatically create a scoreboard using Starscript. Requires operator access.");
     }
@@ -64,7 +65,7 @@ public class AutoScoreboard extends Module {
     @Override
     public void onActivate() {
         assert mc.player != null;
-        if(!mc.player.hasPermissionLevel(2)) {
+        if (!mc.player.hasPermissionLevel(2)) {
             toggle();
             error("No permission!");
         }
@@ -72,29 +73,37 @@ public class AutoScoreboard extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Post event) {
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - lastCommandTime < COOLDOWN) {
+            return; // Exit if the cooldown period hasn't elapsed
+        }
+
         String scoreboardName = RandomStringUtils.randomAlphabetic(10).toLowerCase();
         String thecommand = "/scoreboard objectives add " + scoreboardName + " dummy {\"text\":\"" + MeteorStarscript.run(MeteorStarscript.compile(title.get())) + "\",\"color\":\"" + titleColor.get() + "\"}";
-        if (thecommand.length()<=256){
+        if (thecommand.length() <= 256) {
             ChatUtils.sendPlayerMsg(thecommand);
-        }
-        else {
-            int characterstodelete = thecommand.length()-256;
-            error("Title is too long. Shorten it by "+characterstodelete+" characters.");
+            lastCommandTime = currentTime; // Update the last command time
+        } else {
+            int charactersToDelete = thecommand.length() - 256;
+            error("Title is too long. Shorten it by " + charactersToDelete + " characters.");
             toggle();
             return;
         }
+
         ChatUtils.sendPlayerMsg("/scoreboard objectives setdisplay sidebar " + scoreboardName);
+        lastCommandTime = currentTime; // Update the last command time
+
         int i = content.get().size();
-        for(String string : content.get()) {
+        for (String string : content.get()) {
             String randomName = RandomStringUtils.randomAlphabetic(10).toLowerCase();
             ChatUtils.sendPlayerMsg("/team add " + randomName);
             String thecommand2 = "/team modify " + randomName + " suffix {\"text\":\" " + MeteorStarscript.run(MeteorStarscript.compile(string)) + "\"}";
-            if (thecommand2.length()<=256){
+            if (thecommand2.length() <= 256) {
                 ChatUtils.sendPlayerMsg(thecommand2);
-            }
-            else {
-                int characterstodelete = thecommand2.length()-256;
-                error("This content line is too long ("+MeteorStarscript.run(MeteorStarscript.compile(string))+"). Shorten it by "+characterstodelete+" characters.");
+                lastCommandTime = currentTime; // Update the last command time
+            } else {
+                int charactersToDelete = thecommand2.length() - 256;
+                error("This content line is too long (" + MeteorStarscript.run(MeteorStarscript.compile(string)) + "). Shorten it by " + charactersToDelete + " characters.");
                 toggle();
                 return;
             }
@@ -102,7 +111,10 @@ public class AutoScoreboard extends Module {
             ChatUtils.sendPlayerMsg("/team join " + randomName + " " + i);
             ChatUtils.sendPlayerMsg("/scoreboard players set " + i + " " + scoreboardName + " " + i);
             i--;
+
+            lastCommandTime = currentTime; // Update the last command time
         }
+
         toggle();
         info("Created scoreboard.");
     }
